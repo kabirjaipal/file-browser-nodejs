@@ -2,6 +2,8 @@
 
 A simple Node.js SDK for building a file browser interface with authentication and file upload functionality.
 
+> **Note**: This SDK is currently under development and **should not be used in production**. It may have bugs and incomplete features.
+
 ## Features
 
 - Log in using a username and password to get an authentication token
