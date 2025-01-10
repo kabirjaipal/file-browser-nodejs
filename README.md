@@ -2,7 +2,7 @@
 
 A simple Node.js SDK for building a file browser interface with authentication and file upload functionality.
 
-> **Note**: This SDK is currently under development and **should not be used in production**. It may have bugs and incomplete features.
+> **Note**: This SDK is **unofficial** and is not officially maintained by the [File Browser](https://github.com/filebrowser/filebrowser) project. Additionally, this SDK is currently under development and **should not be used in production**. It may have bugs and incomplete features.
 
 ## Features
 
@@ -25,15 +25,16 @@ npm install file-browser-sdk
 To authenticate and get an auth token:
 
 ```javascript
-const FileBrowserSDK = require('file-browser-sdk');
+const FileBrowserSDK = require("file-browser-sdk");
 
-const sdk = new FileBrowserSDK('username', 'password');
-sdk.authenticate()
-  .then(token => {
-    console.log('Authenticated successfully with token:', token);
+const sdk = new FileBrowserSDK("username", "password");
+sdk
+  .authenticate()
+  .then((token) => {
+    console.log("Authenticated successfully with token:", token);
   })
-  .catch(err => {
-    console.error('Authentication failed:', err);
+  .catch((err) => {
+    console.error("Authentication failed:", err);
   });
 ```
 
@@ -42,21 +43,22 @@ sdk.authenticate()
 To upload a file:
 
 ```javascript
-const file = 'path/to/your/file';
-const folder = 'folder_name';
+const file = "path/to/your/file";
+const folder = "folder_name";
 
-sdk.uploadFile(file, folder)
-  .then(response => {
-    console.log('File uploaded successfully:', response);
+sdk
+  .uploadFile(file, folder)
+  .then((response) => {
+    console.log("File uploaded successfully:", response);
   })
-  .catch(err => {
-    console.error('Upload failed:', err);
+  .catch((err) => {
+    console.error("Upload failed:", err);
   });
 ```
 
 ## Contributing
 
-We welcome contributions to this project. If you want to help, please fork the repository and submit a pull request. 
+We welcome contributions to this project. If you want to help, please fork the repository and submit a pull request.
 
 1. Fork the repo.
 2. Create a new branch for your feature or bug fix.
