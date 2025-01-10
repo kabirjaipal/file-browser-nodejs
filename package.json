@@ -1,0 +1,30 @@
+{
+  "name": "file-browser-nodejs",
+  "version": "1.0.0",
+  "description": "A simple Node.js SDK for building a file browser interface with authentication and file upload functionality.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "nodejs",
+    "file-browser",
+    "sdk",
+    "file-upload",
+    "authentication",
+    "file-management"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kabirjaipal/file-browser-nodejs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kabirjaipal/file-browser-nodejs/issues"
+  },
+  "homepage": "https://github.com/kabirjaipal/file-browser-nodejs#readme",
+  "dependencies": {
+    "axios": "^1.7.9"
+  }
+}
