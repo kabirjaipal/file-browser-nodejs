@@ -27,16 +27,18 @@ class FileBrowserSDK {
       );
 
       // Assuming the API returns a token in the response
-      this.authToken = response.data; // Adjust this to match the actual response structure
+      this.authToken = response.data.token || response.data; // Adjust if token is in a different field
     } catch (error) {
-      this.handleError(error, "Error during authentication");
+      this.handleError(error, "Authentication failed");
     }
   }
 
   // Helper function to create headers with authToken
   getHeaders() {
     if (!this.authToken) {
-      throw new Error("No auth token found. Please authenticate first.");
+      throw new Error(
+        "Authentication token is missing. Please authenticate first."
+      );
     }
 
     return {
@@ -54,21 +56,42 @@ class FileBrowserSDK {
   async createFolder(folderPath) {
     try {
       const response = await axios.post(
-        `${this.apiBaseUrl}/api/resources/${encodeURIComponent(folderPath)}`,
+        `${this.apiBaseUrl}/api/resources/${encodeURIComponent(
+          folderPath
+        )}/?override=false`,
         {},
         { headers: this.getHeaders() }
       );
-      return response.data;
+
+      const { data } = await axios.get(
+        `${this.apiBaseUrl}/api/resources/${encodeURIComponent(folderPath)}/`,
+        { headers: this.getHeaders() }
+      );
+
+      return data;
     } catch (error) {
-      this.handleError(error, "Error creating folder");
+      this.handleError(error, `Error creating folder: ${folderPath}`);
     }
   }
 
+  // Delete a folder
+  async deleteFolder(folderPath) {
+    try {
+      await axios.delete(
+        `${this.apiBaseUrl}/api/resources/${encodeURIComponent(folderPath)}/`,
+        { headers: this.getHeaders() }
+      );
+      return true;
+    } catch (error) {
+      this.handleError(error, `Error deleting folder: ${folderPath}`);
+    }
+  }
+
+  // Upload a file
   async uploadFile(filePath, folderPath) {
     try {
-      const fileName = filePath.split("/").pop(); // Extract the file name from the path
+      const fileName = filePath.split("/").pop() + "_" + Date.now();
 
-      // Step 1: Initiate the Upload (POST Request to create a new upload session)
       const uploadUrl = `${
         this.apiBaseUrl
       }/api/tus/${folderPath}/${encodeURIComponent(fileName)}?override=false`;
@@ -80,7 +103,6 @@ class FileBrowserSDK {
         },
       });
 
-      // head request
       const headResponse = await axios.head(uploadUrl, {
         headers: {
           ...this.getHeaders(),
@@ -89,11 +111,8 @@ class FileBrowserSDK {
       });
 
       const uploadOffset = 0;
-
-      // Step 2: Read the entire file and send it in a single PATCH request
       const fileBuffer = fs.readFileSync(filePath); // Read the entire file into a buffer
 
-      // Step 3: Send PATCH request with the entire file content
       const patchResponse = await axios.patch(uploadUrl, fileBuffer, {
         headers: {
           ...this.getHeaders(),
@@ -106,46 +125,71 @@ class FileBrowserSDK {
       });
 
       if (patchResponse.status === 204) {
-        // Upload complete!
-        console.log("File uploaded successfully!");
-        return patchResponse.data; // You may return the file metadata or confirmation response
+        const fileDetails = await this.getFileDetails(
+          `${folderPath}/${fileName}`
+        );
+        const sharableLink = await this.getSharableLink(fileDetails.path);
+
+        return {
+          name: fileDetails.name,
+          folder: folderPath,
+          path: fileDetails.path,
+          fullPath: `${this.apiBaseUrl}/files${fileDetails.path}`,
+          size: fileDetails.size,
+          type: fileDetails.type,
+          modified: fileDetails.modified,
+          downloadLink: sharableLink.downloadLink,
+          url: sharableLink.url,
+        };
       } else {
         throw new Error("Upload incomplete or failed");
       }
     } catch (error) {
-      this.handleError(error, "Error uploading file");
-    }
-  }
-
-  // Download a file
-  async downloadFile(filePath, destination) {
-    try {
-      const response = await axios.get(
-        `${this.apiBaseUrl}/api/public/dl/${filePath}`,
-        { headers: this.getHeaders(), responseType: "stream" }
-      );
-
-      const writer = require("fs").createWriteStream(destination);
-      response.data.pipe(writer);
-      writer.on("finish", () => {
-        console.log("File downloaded successfully");
-      });
-      return true;
-    } catch (error) {
-      this.handleError(error, "Error downloading file");
+      this.handleError(error, `Error uploading file: ${filePath}`);
     }
   }
 
   // Get sharable link for a file
   async getSharableLink(filePath) {
     try {
-      const response = await axios.get(
-        `${this.apiBaseUrl}/api/share/${encodeURIComponent(filePath)}`,
+      await axios.get(
+        `${this.apiBaseUrl}/api/share${encodeURIComponent(filePath)}`,
         { headers: this.getHeaders() }
       );
+
+      const { data } = await axios.post(
+        `${this.apiBaseUrl}/api/share${encodeURIComponent(filePath)}`,
+        {},
+        { headers: this.getHeaders() }
+      );
+
+      if (!data) return null;
+
+      return {
+        url: `${this.apiBaseUrl}/share/${data.hash}`,
+        downloadLink: `${this.apiBaseUrl}/api/public/dl/${data.hash}${data.path}`,
+      };
+    } catch (error) {
+      this.handleError(error, `Error getting sharable link for: ${filePath}`);
+    }
+  }
+
+  // Rename a file
+  async renameFile(folderPath, fileName, newName) {
+    try {
+      const filePath = `${folderPath}/${fileName}`.replace(/\/+/g, "/");
+      const encodedFilePath = encodeURIComponent(filePath);
+      const encodedNewName = encodeURIComponent(newName);
+
+      const response = await axios.patch(
+        `${this.apiBaseUrl}/api/resources/${encodedFilePath}?action=rename&destination=${encodedNewName}`,
+        null,
+        { headers: this.getHeaders() }
+      );
+
       return response.data;
     } catch (error) {
-      this.handleError(error, "Error getting sharable link");
+      this.handleError(error, `Error renaming file: ${folderPath}/${fileName}`);
     }
   }
 
@@ -158,34 +202,42 @@ class FileBrowserSDK {
       );
       return response.data;
     } catch (error) {
-      this.handleError(error, "Error fetching file details");
+      this.handleError(error, `Error fetching file details: ${filePath}`);
+    }
+  }
+
+  // Get a list of files or folders in a folder
+  async getFilesInFolder(folderPath) {
+    try {
+      const response = await axios.get(
+        `${this.apiBaseUrl}/api/resources/${encodeURIComponent(folderPath)}`,
+        { headers: this.getHeaders() }
+      );
+      return response.data;
+    } catch (error) {
+      this.handleError(error, `Error fetching files in folder: ${folderPath}`);
     }
   }
 
   // Handle errors and provide more readable error messages
   handleError(error, contextMessage) {
-    // Check if error is a response from the API
     if (error.response) {
-      console.error(`${contextMessage}:`);
-      console.error(`Status: ${error.response.status}`);
-      console.error(`Data: ${JSON.stringify(error.response.data, null, 2)}`);
+      // Avoid exposing sensitive data
+      console.error(`${contextMessage} - Status: ${error.response.status}`);
       console.error(
-        `Headers: ${JSON.stringify(error.response.headers, null, 2)}`
+        `${contextMessage} - Error Message: ${
+          error.response.data?.message || "Unknown error"
+        }`
       );
-      throw new Error(
-        `${contextMessage} - ${error.response.data?.message || "Unknown error"}`
-      );
+    } else if (error.request) {
+      // In case the request is made but no response is received
+      console.error(`${contextMessage} - No response received from server.`);
+    } else {
+      // General error message for unexpected issues
+      console.error(`${contextMessage} - ${error.message}`);
     }
 
-    // If error is not a response, check for other types of errors
-    if (error.request) {
-      console.error(`${contextMessage}: No response received from server.`);
-      throw new Error(`${contextMessage} - No response received from server.`);
-    }
-
-    // General error message for unexpected issues
-    console.error(`${contextMessage}: ${error.message}`);
-    throw new Error(`${contextMessage} - ${error.message}`);
+    throw new Error(`${contextMessage} - ${error.message || "Unknown error"}`);
   }
 }
 
